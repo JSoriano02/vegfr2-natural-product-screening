@@ -2,7 +2,7 @@
 
 include { OBTAIN_DATA_RAW }                   from './modules/obtain_data.nf'
 include { FRACCIONAR_LOTUS; FILTRADO_RDKIT }    from './modules/process_ligands.nf'
-
+include { FILTRADO_ADMET }                      from './modules/admet_filter.nf'
 
 workflow {
     // 1. Ingesta Inicial. Ejecutamos el proceso directamente
@@ -17,5 +17,8 @@ workflow {
 
     // 4. Filtrado Farmacológico en paralelo
     moleculas_viables_ch = FILTRADO_RDKIT(lotes_crudos_ch.flatten())
+
+    // 5. Filtrado de Seguridad Clínica con IA (ADMET-AI)
+    candidatos_seguros_ch = FILTRADO_ADMET(moleculas_viables_ch)
 
 }
