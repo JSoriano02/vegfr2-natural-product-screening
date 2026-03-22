@@ -1,14 +1,19 @@
+// modules/docking_gnina.nf
 
 process DOCKING_GNINA {
     label 'gpu_intensive'
     cpus 4
     
-    publishDir "results/docking_final", mode: 'copy'
+    // LA SOLUCIÓN: Límite estricto de procesos paralelos para no desbordar la memoria
+    maxForks 2
     
-    conda "conda-forge::gnina conda-forge::python=3.10"
+    publishDir "results/docking_final", mode: 'copy'
+    conda "conda-forge::python=3.10"
 
     input:
-    tuple path(ligandos), path(receptor), path(ligando_control)
+    path ligandos
+    path receptor
+    path ligando_control
 
     output:
     path "resultados_lote_*.csv", emit: reporte_csv
@@ -16,20 +21,22 @@ process DOCKING_GNINA {
 
     script:
     """
+    wget -qO gnina https://github.com/gnina/gnina/releases/download/v1.0.3/gnina
+    chmod +x gnina
+
     mkdir -p poses_exitosas
     CSV_FILE="resultados_lote_\${HOSTNAME}_\$\$.csv"
     echo "SMILES_ID,Vina_Affinity_kcal_mol,CNN_Pose_Score,CNN_Affinity_pKd" > "\$CSV_FILE"
 
-    # Iteramos sobre cada ligando del lote
     for lig in ${ligandos}; do
         basename=\$(basename "\$lig" .pdbqt)
 
-        gnina -r ${receptor} \\
+        ./gnina -r ${receptor} \\
               -l "\$lig" \\
               --autobox_ligand ${ligando_control} \\
               --exhaustiveness 8 \\
               --cnn_scoring rescore \\
-              --out "\${basename}_docked.sdf" > "\${basename}_log.txt"
+              --out "\${basename}_docked.sdf" > "\${basename}_log.txt" 2>&1 || true
 
         python3 -c "
 import os
@@ -58,7 +65,8 @@ try:
         if vina_affinity <= -7.0 and cnn_score >= 0.5:
             with open(csv_file, 'a') as f_csv:
                 f_csv.write(f'{basename},{vina_affinity},{cnn_score},{cnn_affinity}\\n')
-            os.rename(sdf_file, f'poses_exitosas/{basename}_docked.sdf')
+            if os.path.exists(sdf_file):
+                os.rename(sdf_file, f'poses_exitosas/{basename}_docked.sdf')
         else:
             if os.path.exists(sdf_file):
                 os.remove(sdf_file)

@@ -17,13 +17,16 @@ workflow {
     candidatos_seguros_ch = FILTRADO_ADMET(moleculas_viables_ch)
     ligandos_3d_ch = PREPARACION_MEEKO_3D(candidatos_seguros_ch)
 
+    // 6. Preparación del Receptor y Rescate del Control
     preparacion_receptor = PREPARAR_RECEPTOR(receptor_pdb_ch)
+    
     receptor_listo_ch  = preparacion_receptor.receptor_pdbqt
     ligando_control_ch = preparacion_receptor.ligando_control
 
-    docking_inputs_ch = ligandos_3d_ch
-        .combine(receptor_listo_ch)
-        .combine(ligando_control_ch)
-
-    DOCKING_GNINA(docking_inputs_ch)
+    // 7. EL DOCKING FINAL
+    resultados_finales_ch = DOCKING_GNINA(
+        ligandos_3d_ch, 
+        receptor_listo_ch, 
+        ligando_control_ch
+    )
 }
