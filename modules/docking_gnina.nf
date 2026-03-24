@@ -4,9 +4,7 @@ process DOCKING_GNINA {
     label 'gpu_intensive'
     cpus 4
     
-    // LA SOLUCIÓN: Límite estricto de procesos paralelos para no desbordar la memoria
-    maxForks 2
-    
+    errorStrategy 'ignore'
     publishDir "results/docking_final", mode: 'copy'
     conda "conda-forge::python=3.10"
 
@@ -38,6 +36,7 @@ process DOCKING_GNINA {
               --cnn_scoring rescore \\
               --out "\${basename}_docked.sdf" > "\${basename}_log.txt" 2>&1 || true
 
+        # EL SCRIPT DE PYTHON CORREGIDO
         python3 -c "
 import os
 log_file = '\${basename}_log.txt'
@@ -46,30 +45,34 @@ csv_file = '\$CSV_FILE'
 basename = '\${basename}'
 
 try:
-    with open(log_file, 'r') as f:
-        lines = f.readlines()
-        
-    start_idx = 0
-    for i, line in enumerate(lines):
-        if 'mode |   affinity |  dist from best mode |  CNN |   CNN' in line:
-            start_idx = i + 3
-            break
+    if os.path.exists(log_file):
+        with open(log_file, 'r') as f:
+            lines = f.readlines()
             
-    if start_idx > 0 and start_idx < len(lines):
-        top_pose = lines[start_idx].split()
-        
-        vina_affinity = float(top_pose[1])
-        cnn_score = float(top_pose[4])
-        cnn_affinity = float(top_pose[5])
-        
-        if vina_affinity <= -7.0 and cnn_score >= 0.5:
+        start_idx = 0
+        for i, line in enumerate(lines):
+            # Ahora busca la cabecera real sin importar las columnas intermedias
+            if 'mode |' in line and 'affinity' in line:
+                start_idx = i + 3
+                break
+                
+        if start_idx > 0 and start_idx < len(lines):
+            top_pose = lines[start_idx].split()
+            
+            # Índices corregidos basándonos en tu captura de pantalla
+            vina_affinity = float(top_pose[1])
+            cnn_score = float(top_pose[2])
+            cnn_affinity = float(top_pose[3])
+            
             with open(csv_file, 'a') as f_csv:
                 f_csv.write(f'{basename},{vina_affinity},{cnn_score},{cnn_affinity}\\n')
-            if os.path.exists(sdf_file):
-                os.rename(sdf_file, f'poses_exitosas/{basename}_docked.sdf')
-        else:
-            if os.path.exists(sdf_file):
-                os.remove(sdf_file)
+            
+            if vina_affinity <= -7.0 and cnn_score >= 0.5:
+                if os.path.exists(sdf_file):
+                    os.rename(sdf_file, f'poses_exitosas/{basename}_docked.sdf')
+            else:
+                if os.path.exists(sdf_file):
+                    os.remove(sdf_file)
 except Exception as e:
     pass
 "
