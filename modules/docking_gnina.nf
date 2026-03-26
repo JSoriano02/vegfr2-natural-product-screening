@@ -1,11 +1,9 @@
-// modules/docking_gnina.nf
 
 process DOCKING_GNINA {
     label 'gpu_intensive'
     cpus 4
     
     errorStrategy 'ignore'
-    publishDir "results/docking_final", mode: 'copy'
     conda "conda-forge::python=3.10"
 
     input:
