@@ -4,6 +4,7 @@ work/
 .nextflow.log*
 results/
 raw_data/
+images/
 
 # Archivos de sistema y editores
 .DS_Store
