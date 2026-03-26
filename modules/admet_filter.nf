@@ -19,8 +19,11 @@ process FILTER_ADMET {
 
     // Stage 1: Prepare input with proper CSV header format
     // ADMET-AI expects a header row named "smiles"
-    echo "smiles" > input_with_header.csv
-    cat ${viable_smi} >> input_with_header.csv
+    python3 <<EOF
+import pandas as pd
+df_in = pd.read_csv('${viable_smi}', sep='\\t', header=None, names=['smiles', 'name'])
+df_in.to_csv('input_with_header.csv', index=False)
+EOF
 
     // Stage 2: Run ADMET-AI prediction on all molecules
     // Generates predictions for multiple toxicity and bioavailability properties
@@ -48,8 +51,7 @@ mask = (df['BBB_Martins'] < 0.5) & (df['AMES'] < 0.5) & (df['DILI'] < 0.5) & (df
 df_safe = df[mask]
 
 // Write output file containing only SMILES of safe molecules
-df_safe.iloc[:, 0].to_csv('clinically_safe_${viable_smi}', index=False, header=False)
-print("Filtering complete. Remaining safe molecules: " + str(len(df_safe)))
+df_safe[['smiles', 'name']].to_csv('clinically_safe_${viable_smi}', sep='\\t', index=False, header=False)
 EOF
     """
 }

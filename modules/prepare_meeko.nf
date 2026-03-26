@@ -24,7 +24,7 @@ from meeko import MoleculePreparation
 
 // Stage 1: Load safe molecules from current batch
 // Read SMILES file and create molecule objects in RDKit
-suppl = Chem.SmilesMolSupplier('${safe_smi}', titleLine=False, sanitize=True)
+suppl = Chem.SmilesMolSupplier('${safe_smi}', delimiter='\\t', smilesColumn=0, nameColumn=1, titleLine=False, sanitize=True)
 
 // Stage 2: Initialize Meeko for PDBQT conversion with partial charges
 preparator = MoleculePreparation()

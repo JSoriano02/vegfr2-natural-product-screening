@@ -40,7 +40,7 @@ process FILTER_RDKIT {
     out_file = open('${batch_smi}_viable.smi', 'w')
 
     // Load all molecules from input batch
-    suppl = Chem.MultithreadedSmilesMolSupplier('${batch_smi}', delimiter='\\t', smilesColumn=0, titleLine=False)
+    suppl = Chem.MultithreadedSmilesMolSupplier('${batch_smi}', delimiter='\\t', smilesColumn=0, nameColumn=1, titleLine=False)
 
     // Iterate through molecules and apply Lipinski's Rule of Five filters
     for mol in suppl:
@@ -53,7 +53,7 @@ process FILTER_RDKIT {
                 Lipinski.NumRotatableBonds(mol) < 10):
 
                 // Write viable molecule to SMILES format
-                out_file.write(Chem.MolToSmiles(mol) + '\\n')
+                out_file.write(f"{Chem.MolToSmiles(mol)}\\t{mol_id}\\n")
 
     out_file.close()
     """
