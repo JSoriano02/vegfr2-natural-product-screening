@@ -1,17 +1,18 @@
 
-process PREPARACION_MEEKO_3D {
-    // Le damos 2 hilos de CPU porque calcular geometría 3D requiere matemáticas intensivas
+process PREPARE_MEEKO_3D {
+    // Allocate 2 CPU threads for computationally intensive 3D geometry calculations
     cpus 2
-    
-    // Entorno Conda con RDKit y Meeko
+
+    // Define conda environment with RDKit, Meeko, and Python dependencies
     conda "conda-forge::rdkit conda-forge::meeko conda-forge::python=3.10"
 
     input:
-    path seguros_smi
+    // Batch file containing SMILES of safe molecules from ADMET filtering
+    path safe_smi
 
     output:
-    // Emitimos todos los archivos .pdbqt que se generen en este lote
-    path "*.pdbqt", emit: ligandos_pdbqt
+    // All generated PDBQT files from this processing batch
+    path "*.pdbqt", emit: ligands_pdbqt
 
     script:
     """
@@ -21,43 +22,53 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from meeko import MoleculePreparation
 
-# 1. Leer las moléculas seguras del lote actual
-suppl = Chem.SmilesMolSupplier('${seguros_smi}', titleLine=False, sanitize=True)
+// Stage 1: Load safe molecules from current batch
+// Read SMILES file and create molecule objects in RDKit
+suppl = Chem.SmilesMolSupplier('${safe_smi}', titleLine=False, sanitize=True)
 
-# 2. Inicializar el motor de Meeko
+// Stage 2: Initialize Meeko for PDBQT conversion with partial charges
 preparator = MoleculePreparation()
 
-# Extraemos un identificador del nombre del archivo para no mezclar moléculas de distintos lotes
-lote_id = str('${seguros_smi}').replace('.smi', '').replace('seguros_clinicos_', '')
+// Extract batch identifier from filename to ensure molecule tracking
+// Prevents mixing molecules from different processing batches
+batch_id = str('${safe_smi}').replace('.smi', '').replace('clinically_safe_', '')
 
-contador = 0
+// Counter for sequential numbering of molecules in this batch
+molecule_counter = 0
+
+// Stage 3: Process each molecule through 3D structure generation and optimization
 for mol in suppl:
     if mol is not None:
         try:
-            # Añadir hidrógenos (vital para simular puentes de hidrógeno)
+            // Step 1: Add hydrogen atoms (critical for accurate hydrogen bonding interactions)
             mol = Chem.AddHs(mol)
-            
-            # Plegado 3D (Algoritmo ETKDGv3)
-            res = AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
-            
-            # Si res == 0, el algoritmo encontró una geometría 3D estable
-            if res == 0:
-                # Minimización de energía (Acomodar los átomos para que no choquen)
+
+            // Step 2: Generate 3D coordinates using ETKDGv3 algorithm
+            // This algorithm finds a 3D conformation that minimizes steric clashes
+            result_code = AllChem.EmbedMolecule(mol, AllChem.ETKDGv3())
+
+            // Step 3: Check if 3D embedding was successful (result_code == 0)
+            if result_code == 0:
+                // Step 4: Minimize molecular energy with MMFF94 force field
+                // Adjusts atomic positions to reduce steric collisions and strain
                 AllChem.MMFFOptimizeMolecule(mol)
-                
-                # Conversión a formato PDBQT con cargas parciales
+
+                // Step 5: Convert optimized structure to PDBQT format with Gasteiger charges
                 preparator.prepare(mol)
                 pdbqt_string = preparator.write_pdbqt_string()
-                
-                # Nombramos el archivo: ej. ligando_lote_ab_0.pdbqt
-                mol_name = mol.GetProp("_Name") if mol.HasProp("_Name") and mol.GetProp("_Name") else f"ligando_{lote_id}_{contador}"
-                
+
+                // Step 6: Generate filename using molecule name or batch identifier
+                // Format: ligand_[batch_id]_[counter].pdbqt
+                mol_name = mol.GetProp("_Name") if mol.HasProp("_Name") and mol.GetProp("_Name") else f"ligand_{batch_id}_{molecule_counter}"
+
+                // Step 7: Write PDBQT file for docking
                 with open(f"{mol_name}.pdbqt", "w") as f:
                     f.write(pdbqt_string)
-                
-                contador += 1
+
+                molecule_counter += 1
         except Exception as e:
-            # Si la molécula es físicamente imposible de doblar, la descartamos en silencio
+            // Silently skip molecules that cannot form valid 3D geometries
+            // This includes molecules with impossible steric arrangements
             pass
 EOF
     """

@@ -1,29 +1,36 @@
 
-process PREPARAR_RECEPTOR {
+process PREPARE_RECEPTOR {
+    // Use single CPU thread for sequential processing
     cpus 1
-    
-    // Usamos OpenBabel, que es moderno y nunca falla en Conda
+
+    // Use OpenBabel - robust conda package for molecular format conversion
     conda "conda-forge::openbabel"
 
     input:
+    // Receptor structure file from Protein Data Bank
     path receptor_pdb
 
     output:
-    path "receptor_listo.pdbqt", emit: receptor_pdbqt
-    path "ligando_control.pdb", emit: ligando_control
+    // Receptor in PDBQT format (AutoDock compatible with charges)
+    path "ready_receptor.pdbqt", emit: receptor_pdbqt
+    // Co-crystalized ligand extracted from receptor structure
+    path "control_ligand.pdb", emit: control_ligand
 
     script:
     """
-    # 1. RESCATE DEL CONTROL Y LIMPIEZA BASICA (Usando 'awk' que es a prueba de fallos)
-    # Guardamos los ligandos ignorando el agua
-    awk '/^HETATM/ && !/HOH/' ${receptor_pdb} > ligando_control.pdb
-    
-    # Guardamos SOLO la proteína (líneas ATOM), descartando todo lo demás
+    // Stage 1: Extract and prepare co-crystalized ligand
+    // Extract all HETATM (non-water ligand) records, excluding HOH (water molecules)
+    // This control ligand is used to define the docking binding box
+    awk '/^HETATM/ && !/HOH/' ${receptor_pdb} > control_ligand.pdb
+
+    // Stage 2: Extract protein structure
+    // Keep only ATOM records (protein backbone and sidechains)
+    // Exclude all other records (HETATM, CONECT, etc.)
     awk '/^ATOM/' ${receptor_pdb} > receptor_clean.pdb
 
-    # 2. PREPARACIÓN FINAL CON OPENBABEL
-    # -p 7.4 : Añade hidrógenos calculados para un pH fisiológico de 7.4
-    # -xr    : Flag especial de AutoDock (calcula cargas Gasteiger y formatea como PDBQT rígido)
-    obabel receptor_clean.pdb -O receptor_listo.pdbqt -p 7.4 -xr
+    // Stage 3: Prepare receptor for docking with OpenBabel
+    // -p 7.4    : Add hydrogens calculated for physiological pH 7.4
+    // -xr        : AutoDock format flag - calculates Gasteiger partial charges, rigid PDBQT format
+    obabel receptor_clean.pdb -O ready_receptor.pdbqt -p 7.4 -xr
     """
 }

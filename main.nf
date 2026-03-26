@@ -1,36 +1,55 @@
 #!/usr/bin/env nextflow
 
-include { OBTAIN_DATA_RAW }                     from './modules/obtain_data.nf'
-include { FRACCIONAR_LOTUS; FILTRADO_RDKIT }    from './modules/process_ligands.nf'
-include { FILTRADO_ADMET }                      from './modules/admet_filter.nf'
-include { PREPARACION_MEEKO_3D }                from './modules/prepare_meeko.nf'
-include { PREPARAR_RECEPTOR }                   from './modules/prepare_receptor.nf'
-include { DOCKING_GNINA }                       from './modules/docking_gnina.nf'
-include { CONSOLIDAR_RESULTADOS }               from './modules/paste_results.nf'
+// Main workflow orchestration for VGFR2 molecular docking pipeline
+// Processes include: data acquisition, ligand filtering, receptor preparation, and molecular docking
+
+include { OBTAIN_DATA_RAW }              from './modules/obtain_data.nf'
+include { CHUNK_LOTUS; FILTER_RDKIT }   from './modules/process_ligands.nf'
+include { FILTER_ADMET }                from './modules/admet_filter.nf'
+include { PREPARE_MEEKO_3D }            from './modules/prepare_meeko.nf'
+include { PREPARE_RECEPTOR }            from './modules/prepare_receptor.nf'
+include { DOCKING_GNINA }               from './modules/docking_gnina.nf'
+include { CONSOLIDATE_RESULTS }         from './modules/paste_results.nf'
 
 workflow {
+    // Stage 1: Data acquisition from LOTUS database and PDB structure database
     OBTAIN_DATA_RAW(params.lotus_url, params.pdb_id)
     lotus_smi_ch    = OBTAIN_DATA_RAW.out.lotus_smi
     receptor_pdb_ch = OBTAIN_DATA_RAW.out.receptor_pdb
 
-    lotes_crudos_ch = FRACCIONAR_LOTUS(lotus_smi_ch)
-    moleculas_viables_ch = FILTRADO_RDKIT(lotes_crudos_ch.flatten())
-    candidatos_seguros_ch = FILTRADO_ADMET(moleculas_viables_ch)
-    ligandos_3d_ch = PREPARACION_MEEKO_3D(candidatos_seguros_ch)
-    preparacion_receptor = PREPARAR_RECEPTOR(receptor_pdb_ch)
-    
-    receptor_listo_ch  = preparacion_receptor.receptor_pdbqt
-    ligando_control_ch = preparacion_receptor.ligando_control
+    // Stage 2: Ligand database chunking and filtering
+    // Chunk large LOTUS dataset into manageable batches
+    raw_batches_ch = CHUNK_LOTUS(lotus_smi_ch)
 
-   
-    resultados_finales_ch = DOCKING_GNINA(
-        ligandos_3d_ch, 
-        receptor_listo_ch, 
-        ligando_control_ch
+    // Apply RDKit filtering to remove molecules violating Lipinski's rules
+    viable_molecules_ch = FILTER_RDKIT(raw_batches_ch.flatten())
+
+    // Filter viable molecules by ADMET properties for safety
+    safe_candidates_ch = FILTER_ADMET(viable_molecules_ch)
+
+    // Stage 3: 3D structure generation and optimization
+    // Generate 3D coordinates and convert to PDBQT format for docking
+    ligands_3d_ch = PREPARE_MEEKO_3D(safe_candidates_ch)
+
+    // Stage 4: Receptor preparation
+    // Convert receptor to PDBQT format and extract co-crystalized ligand
+    receptor_preparation = PREPARE_RECEPTOR(receptor_pdb_ch)
+
+    ready_receptor_ch  = receptor_preparation.receptor_pdbqt
+    control_ligand_ch = receptor_preparation.control_ligand
+
+    // Stage 5: Molecular docking with GNINA
+    // Perform docking calculations and scoring with CNN-based predictions
+    final_results_ch = DOCKING_GNINA(
+        ligands_3d_ch,
+        ready_receptor_ch,
+        control_ligand_ch
     )
 
-    CONSOLIDAR_RESULTADOS(
-        resultados_finales_ch.reporte_csv.collect(),
-        resultados_finales_ch.poses_3d.collect()
+    // Stage 6: Results consolidation
+    // Collect, filter top candidates, and extract SMILES representations
+    CONSOLIDATE_RESULTS(
+        final_results_ch.reporte_csv.collect(),
+        final_results_ch.poses_3d.collect()
     )
 }

@@ -1,27 +1,34 @@
-process FRACCIONAR_LOTUS {
+process CHUNK_LOTUS {
+    // Lightweight conda environment for Unix utilities
     conda "conda-forge::coreutils"
 
     input:
-    path base_datos
+    // Complete SMILES database to be split into batches
+    path database
 
     output:
-    path "lote_*"
+    // Multiple batch files containing subsets of ligands
+    path "batch_*"
 
     script:
     """
-    # Desglose de cadenas de texto SMILES en bloques asíncronos en disco
-    split -l ${params.chunk_size} ${base_datos} lote_
+    // Split SMILES strings into manageable batch chunks stored asynchronously on disk
+    // This parallelizes filteringfor faster processing of large datasets
+    split -l ${params.chunk_size} ${database} batch_
     """
 }
 
-process FILTRADO_RDKIT {
+process FILTER_RDKIT {
+    // Conda environment with RDKit and Python for molecular filtering
     conda "conda-forge::rdkit conda-forge::python=3.10"
 
     input:
-    path lote_smi
+    // Single batch file containing SMILES strings to filter
+    path batch_smi
 
     output:
-    path "${lote_smi}_viable.smi"
+    // Batch file containing only viable molecules that pass Lipinski's rules
+    path "${batch_smi}_viable.smi"
 
     script:
     """
@@ -29,20 +36,25 @@ process FILTRADO_RDKIT {
     from rdkit import Chem
     from rdkit.Chem import Descriptors, Lipinski
 
-    out_file = open('${lote_smi}_viable.smi', 'w')
-    
-    suppl = Chem.MultithreadedSmilesMolSupplier('${lote_smi}', delimiter='\\t', smilesColumn=0, titleLine=False)
+    // Open output file for writing viable molecules
+    out_file = open('${batch_smi}_viable.smi', 'w')
 
+    // Load all molecules from input batch
+    suppl = Chem.MultithreadedSmilesMolSupplier('${batch_smi}', delimiter='\\t', smilesColumn=0, titleLine=False)
+
+    // Iterate through molecules and apply Lipinski's Rule of Five filters
     for mol in suppl:
         if mol is not None:
-            if (Descriptors.MolWt(mol) <= 500 and 
-                Descriptors.MolLogP(mol) <= 5 and 
-                Lipinski.NumHDonors(mol) <= 5 and 
-                Lipinski.NumHAcceptors(mol) <= 10 and 
+            // Verify molecular weight, lipophilicity, hydrogen donors/acceptors, and rotatable bonds
+            if (Descriptors.MolWt(mol) <= 500 and
+                Descriptors.MolLogP(mol) <= 5 and
+                Lipinski.NumHDonors(mol) <= 5 and
+                Lipinski.NumHAcceptors(mol) <= 10 and
                 Lipinski.NumRotatableBonds(mol) < 10):
-                
+
+                // Write viable molecule to SMILES format
                 out_file.write(Chem.MolToSmiles(mol) + '\\n')
-                
+
     out_file.close()
     """
 }
