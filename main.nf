@@ -25,7 +25,9 @@ workflow {
     viable_molecules_ch = FILTER_RDKIT(raw_batches_ch.flatten())
 
     // Filter viable molecules by ADMET properties for safety
-    safe_candidates_ch = FILTER_ADMET(viable_molecules_ch)
+    admet_results = FILTER_ADMET(viable_molecules_ch)
+    safe_candidates_ch = admet_results.safe_candidates
+    admet_data_ch      = admet_results.admet_data
 
     // Stage 3: 3D structure generation and optimization
     // Generate 3D coordinates and convert to PDBQT format for docking
@@ -50,6 +52,7 @@ workflow {
     // Collect, filter top candidates, and extract SMILES representations
     CONSOLIDATE_RESULTS(
         final_results_ch.reporte_csv.collect(),
-        final_results_ch.poses_3d.collect()
+        final_results_ch.poses_3d.collect(),
+        admet_data_ch.collect()
     )
 }

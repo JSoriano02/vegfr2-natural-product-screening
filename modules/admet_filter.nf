@@ -9,8 +9,9 @@ process FILTER_ADMET {
     path viable_smi
 
     output:
-    // Batch file containing only clinically safe molecules after ADMET filtering
+    // Batch file containing only clinically safe molecules after ADMET filtering and their corresponding ADMET prediction data
     path "clinically_safe_${viable_smi}", emit: safe_candidates
+    path "admet_data_*.csv", emit: admet_data 
 
     script:
     """
@@ -52,6 +53,11 @@ df_safe = df[mask]
 
 // Write output file containing only SMILES of safe molecules
 df_safe[['smiles', 'name']].to_csv('clinically_safe_${viable_smi}', sep='\\t', index=False, header=False)
+
+// Additionally, save the full ADMET prediction data for these safe molecules for future reference
+clean_name = "${viable_smi}".replace('.smi', '')
+df_safe.to_csv(f'admet_data_{clean_name}.csv', index=False)
+
 EOF
     """
 }
