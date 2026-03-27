@@ -19,10 +19,10 @@ process OBTAIN_DATA_RAW {
 
     script:
     """
-    // Download the complete LOTUS Natural Products Database containing all available ligands
+    # Download the complete LOTUS Natural Products Database containing all available ligands
     wget -O lotus_full.smi ${lotus_url}
 
-    // Download the receptor 3D structure from the Protein Data Bank (PDB)
+    # Download the receptor 3D structure from the Protein Data Bank (PDB)
     wget -O ${pdb_id}.pdb "https://files.rcsb.org/download/${pdb_id}.pdb"
     """
 }

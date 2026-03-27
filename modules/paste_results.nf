@@ -32,7 +32,7 @@ import shutil
 import pandas as pd
 from rdkit import Chem
 
-// Stage 1: Load ADMET data into a dictionary for quick access
+# Stage 1: Load ADMET data into a dictionary for quick access
 admet_dict = {}
 for f in glob.glob('admet_data_*.csv'):
     df_admet = pd.read_csv(f)
@@ -46,11 +46,11 @@ for f in glob.glob('admet_data_*.csv'):
             'Carcinogens': round(float(row['Carcinogens_Lagunin']), 4)
         }
 
-// Stage 2: Aggregate all docking results from batch CSV files
+# Stage 2: Aggregate all docking results from batch CSV files
 all_rows = []
 header = []
 
-// Read all CSV files and combine into single dataset
+# Read all CSV files and combine into single dataset
 for f in glob.glob('*.csv'):
     # Skip ADMET data files to prevent mixing headers with docking results
     if 'admet_data' in f:
@@ -65,54 +65,54 @@ for f in glob.glob('*.csv'):
             if len(row) >= 4:
                 all_rows.append(row)
 
-// Stage 3: Apply ultra-strict filtering for top-tier candidates
-// Filter molecules based on binding affinity and CNN confidence
+# Stage 3: Apply ultra-strict filtering for top-tier candidates
+# Filter molecules based on binding affinity and CNN confidence
 filtered_rows = []
 for r in all_rows:
     try:
         vina = float(r[1])
         cnn = float(r[2])
-        // Criteria: very strong affinity (vina <= -8.0 kcal/mol) AND high AI confidence (cnn >= 0.6)
-        // These are strict filters for high-quality candidates only
+        # Criteria: very strong affinity (vina <= -8.0 kcal/mol) AND high AI confidence (cnn >= 0.6)
+        # These are strict filters for high-quality candidates only
         if vina <= -8.0 and cnn >= 0.6:
             filtered_rows.append(r)
     except ValueError:
         pass
 
-// Stage 4: Sort candidates by binding affinity (most negative = strongest binding)
+# Stage 4: Sort candidates by binding affinity (most negative = strongest binding)
 filtered_rows.sort(key=lambda x: float(x[1]))
 
-// Stage 5: Select top 50 candidates from all successful predictions
+# Stage 5: Select top 50 candidates from all successful predictions
 top_molecules = filtered_rows[:50]
 
-// Stage 6: Prepare output headers
-// Add headers for ADMET properties and extracted SMILES structure
+# Stage 6: Prepare output headers
+# Add headers for ADMET properties and extracted SMILES structure
 header.extend(['BBB_Martins', 'AMES_Toxicity', 'DILI_Risk', 'Carcinogens', 'Extracted_SMILES'])
 
-// Stage 7: Rescue 3D structures, extract SMILES, and merge ADMET data for each top candidate
+# Stage 7: Rescue 3D structures, extract SMILES, and merge ADMET data for each top candidate
 for row in top_molecules:
     basename = row[0]
     sdf_name = f'{basename}_docked.sdf'
     smiles_string = 'ERROR_NOT_FOUND'  # Keeps original error message format
 
     if os.path.exists(sdf_name):
-        // Copy 3D structure file to VIP results directory
+        # Copy 3D structure file to VIP results directory
         shutil.copy(sdf_name, f'top_poses/{sdf_name}')
 
-        // Extract SMILES representation from 3D SDF structure using RDKit
+        # Extract SMILES representation from 3D SDF structure using RDKit
         try:
-            // Load 3D molecule structure from SDF file
+            # Load 3D molecule structure from SDF file
             suppl = Chem.SDMolSupplier(sdf_name)
             mol = suppl[0]
             if mol is not None:
-                // Convert 3D structure to canonical SMILES notation
+                # Convert 3D structure to canonical SMILES notation
                 smiles_string = Chem.MolToSmiles(mol)
         except:
-            // Skip SMILES extraction if RDKit fails
+            # Skip SMILES extraction if RDKit fails
             pass
 
-    // Fetch ADMET properties from dictionary using the molecule ID
-    // Provide default 'N/A' if the molecule ID is missing
+    # Fetch ADMET properties from dictionary using the molecule ID
+    # Provide default 'N/A' if the molecule ID is missing
     admet_info = admet_dict.get(basename, {
         'BBB_Martins': 'N/A', 
         'AMES_Toxicity': 'N/A', 
@@ -120,7 +120,7 @@ for row in top_molecules:
         'Carcinogens': 'N/A'
     })
 
-    // Append ADMET properties and extracted SMILES to molecule's data row
+    # Append ADMET properties and extracted SMILES to molecule's data row
     row.extend([
         admet_info['BBB_Martins'],
         admet_info['AMES_Toxicity'],
@@ -129,7 +129,7 @@ for row in top_molecules:
         smiles_string
     ])
 
-// Stage 8: Write comprehensive master CSV with all information
+# Stage 8: Write comprehensive master CSV with all information
 with open('top_candidates_master.csv', 'w', newline='') as out:
     writer = csv.writer(out)
     writer.writerow(header)

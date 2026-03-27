@@ -12,8 +12,8 @@ process CHUNK_LOTUS {
 
     script:
     """
-    // Split SMILES strings into manageable batch chunks stored asynchronously on disk
-    // This parallelizes filteringfor faster processing of large datasets
+    # Split SMILES strings into manageable batch chunks stored asynchronously on disk
+    # This parallelizes filteringfor faster processing of large datasets
     split -l ${params.chunk_size} ${database} batch_
     """
 }
@@ -36,23 +36,23 @@ process FILTER_RDKIT {
     from rdkit import Chem
     from rdkit.Chem import Descriptors, Lipinski
 
-    // Open output file for writing viable molecules
+    # Open output file for writing viable molecules
     out_file = open('${batch_smi}_viable.smi', 'w')
 
-    // Load all molecules from input batch
+    # Load all molecules from input batch
     suppl = Chem.MultithreadedSmilesMolSupplier('${batch_smi}', delimiter='\\t', smilesColumn=0, nameColumn=1, titleLine=False)
 
-    // Iterate through molecules and apply Lipinski's Rule of Five filters
+    # Iterate through molecules and apply Lipinski's Rule of Five filters
     for mol in suppl:
         if mol is not None:
-            // Verify molecular weight, lipophilicity, hydrogen donors/acceptors, and rotatable bonds
+            # Verify molecular weight, lipophilicity, hydrogen donors/acceptors, and rotatable bonds
             if (Descriptors.MolWt(mol) <= 500 and
                 Descriptors.MolLogP(mol) <= 5 and
                 Lipinski.NumHDonors(mol) <= 5 and
                 Lipinski.NumHAcceptors(mol) <= 10 and
                 Lipinski.NumRotatableBonds(mol) < 10):
 
-                // Write viable molecule to SMILES format
+                # Write viable molecule to SMILES format
                 out_file.write(f"{Chem.MolToSmiles(mol)}\\t{mol_id}\\n")
 
     out_file.close()
