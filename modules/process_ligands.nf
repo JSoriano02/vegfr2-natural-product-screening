@@ -52,6 +52,12 @@ process FILTER_RDKIT {
                 Lipinski.NumHAcceptors(mol) <= 10 and
                 Lipinski.NumRotatableBonds(mol) < 10):
 
+                # Extract molecule ID from the name property if available, otherwise assign a default ID
+                if mol.HasProp('_Name') and mol.GetProp('_Name') != '':
+                    mol_id = mol.GetProp('_Name')
+                else:
+                    mol_id = "ID_UNKNOWN"
+
                 # Write viable molecule to SMILES format
                 out_file.write(f"{Chem.MolToSmiles(mol)}\\t{mol_id}\\n")
 
