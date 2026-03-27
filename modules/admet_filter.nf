@@ -2,7 +2,7 @@ process FILTER_ADMET {
     // Use GPU for intensive ADMET property prediction
     label 'gpu_intensive'
     // Define conda environment with Python and data analysis tools
-    conda "conda-forge::python=3.10 conda-forge::pandas conda-forge::pip"
+    conda "${projectDir}/envs/admet_env.yml"
 
     input:
     // Batch file containing RDKit-filtered viable SMILES molecules

@@ -18,7 +18,7 @@ process CONSOLIDATE_RESULTS {
     // Master CSV with top candidates and all metadata
     path "top_candidates_master.csv", emit: master_csv
     // Directory containing SDF files of top ranked poses
-    path "top_poses/*.sdf", emit: top_sdf
+    path "top_poses/*.sdf",optional: true , emit: top_sdf
 
     script:
     """
@@ -72,7 +72,7 @@ for r in all_rows:
     try:
         vina = float(r[1])
         cnn = float(r[2])
-        # Criteria: very strong affinity (vina <= -8.0 kcal/mol) AND high AI confidence (cnn >= 0.6)
+        # Criteria: very strong affinity (vina <= -.0 kcal/mol) AND high AI confidence (cnn >= 0.6)
         # These are strict filters for high-quality candidates only
         if vina <= -8.0 and cnn >= 0.6:
             filtered_rows.append(r)
