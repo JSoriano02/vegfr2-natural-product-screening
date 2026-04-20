@@ -58,6 +58,21 @@ The pipeline delivers a clean, ready-to-publish results directory:
 
 *Intermediate heavy files are kept in the work directory (`work/`) and not exported to `results/` to save disk space.*
 
+## Phase 2: Visual Analysis & 3D Inspection (Jupyter Notebook)
+
+Once the Nextflow pipeline completes the massive screening and generates the `top_candidates_master.csv`, the final selection is performed through interactive visual inspection to validate binding poses before proceeding to Molecular Dynamics (MD).
+
+### Visualization Requirements
+Ensure the following Python dependencies are installed in your local environment or Jupyter kernel:
+
+### How to Visualize Top Candidates
+1. Navigate to the project root directory.
+2. Open your VS Code environment or launch Jupyter Notebook from the terminal.
+3. Open the analysis notebook located at `notebooks/01_VGFR2_Top_Candidates_Visualization.ipynb`.
+4. Execute the cells sequentially. The notebook will automatically:
+   * **2D Grid:** Generate a vector-quality 2D grid with the chemical structures, IDs, and predicted affinities of the top ligands.
+   * **3D Complex:** Construct a 3D interactive scene superimposing your best candidate (`.sdf`) directly into the binding pocket of the VEGFR-2 receptor (`3VO3.pdb`).
+
 ## Scientific Criteria & Key Software
 
 * **Databases**: 
@@ -73,6 +88,7 @@ The pipeline delivers a clean, ready-to-publish results directory:
   * Search thoroughness set to `--exhaustiveness 8`.
   * Dynamic binding site definition using the `--autobox_ligand` algorithm.
 * **Data Consolidation & Traceability**: **RDKit & Python**. Recovers original SMILES strings from final 3D `.sdf` files and ranks top candidates based on a dual strict threshold (Affinity <= -8.0 kcal/mol & CNN score >= 0.6).
+* **Visual Inspection (Phase 2)**: **py3Dmol & Pandas**. Used for programmatic 2D/3D evaluation of hit molecules and protein-ligand interactions within Jupyter Notebooks.
 
 ## References
 
