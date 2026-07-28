@@ -1,4 +1,3 @@
-
 process CONSOLIDATE_RESULTS {
     // Publish final results to designated output directory
     publishDir "results/top_final", mode: 'copy'
@@ -32,18 +31,32 @@ import shutil
 import pandas as pd
 from rdkit import Chem
 
+def safe_get(row, col_name):
+    if col_name in row and pd.notna(row[col_name]):
+        try:
+            return round(float(row[col_name]), 4)
+        except:
+            return row[col_name]
+    return 'N/A'
+
 # Stage 1: Load ADMET data into a dictionary for quick access
 admet_dict = {}
 for f in glob.glob('admet_data_*.csv'):
     df_admet = pd.read_csv(f)
     for _, row in df_admet.iterrows():
         mol_id = str(row['name'])
-        # Store critical clinical safety properties for later retrieval
+        
+        # Intentamos buscar el nombre antiguo y el nuevo por si acaso
+        carc_val = safe_get(row, 'Carcinogens_Lagunin')
+        if carc_val == 'N/A':
+            carc_val = safe_get(row, 'Carcinogens')
+
+        # Store critical clinical safety properties safely
         admet_dict[mol_id] = {
-            'BBB_Martins': round(float(row['BBB_Martins']), 4),
-            'AMES_Toxicity': round(float(row['AMES']), 4),
-            'DILI_Risk': round(float(row['DILI']), 4),
-            'Carcinogens': round(float(row['Carcinogens_Lagunin']), 4)
+            'BBB_Martins': safe_get(row, 'BBB_Martins'),
+            'AMES_Toxicity': safe_get(row, 'AMES'),
+            'DILI_Risk': safe_get(row, 'DILI'),
+            'Carcinogens': carc_val
         }
 
 # Stage 2: Aggregate all docking results from batch CSV files
@@ -58,7 +71,11 @@ for f in glob.glob('*.csv'):
         
     with open(f, 'r') as file:
         reader = csv.reader(file)
-        current_header = next(reader)
+        try:
+            current_header = next(reader)
+        except StopIteration:
+            continue # Salta archivos CSV vacíos si los hay
+            
         if not header:
             header = current_header
         for row in reader:
@@ -66,14 +83,12 @@ for f in glob.glob('*.csv'):
                 all_rows.append(row)
 
 # Stage 3: Apply ultra-strict filtering for top-tier candidates
-# Filter molecules based on binding affinity and CNN confidence
 filtered_rows = []
 for r in all_rows:
     try:
         vina = float(r[1])
         cnn = float(r[2])
-        # Criteria: very strong affinity (vina <= -.0 kcal/mol) AND high AI confidence (cnn >= 0.6)
-        # These are strict filters for high-quality candidates only
+        # Criteria: very strong affinity (vina <= -8.0 kcal/mol) AND high AI confidence (cnn >= 0.6)
         if vina <= -8.0 and cnn >= 0.6:
             filtered_rows.append(r)
     except ValueError:
@@ -86,14 +101,13 @@ filtered_rows.sort(key=lambda x: float(x[1]))
 top_molecules = filtered_rows[:50]
 
 # Stage 6: Prepare output headers
-# Add headers for ADMET properties and extracted SMILES structure
 header.extend(['BBB_Martins', 'AMES_Toxicity', 'DILI_Risk', 'Carcinogens', 'Extracted_SMILES'])
 
 # Stage 7: Rescue 3D structures, extract SMILES, and merge ADMET data for each top candidate
 for row in top_molecules:
     basename = row[0]
     sdf_name = f'{basename}_docked.sdf'
-    smiles_string = 'ERROR_NOT_FOUND'  # Keeps original error message format
+    smiles_string = 'ERROR_NOT_FOUND'
 
     if os.path.exists(sdf_name):
         # Copy 3D structure file to VIP results directory
@@ -101,18 +115,14 @@ for row in top_molecules:
 
         # Extract SMILES representation from 3D SDF structure using RDKit
         try:
-            # Load 3D molecule structure from SDF file
             suppl = Chem.SDMolSupplier(sdf_name)
             mol = suppl[0]
             if mol is not None:
-                # Convert 3D structure to canonical SMILES notation
                 smiles_string = Chem.MolToSmiles(mol)
         except:
-            # Skip SMILES extraction if RDKit fails
             pass
 
     # Fetch ADMET properties from dictionary using the molecule ID
-    # Provide default 'N/A' if the molecule ID is missing
     admet_info = admet_dict.get(basename, {
         'BBB_Martins': 'N/A', 
         'AMES_Toxicity': 'N/A', 
