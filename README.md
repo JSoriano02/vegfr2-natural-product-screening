@@ -2,6 +2,10 @@
 
 A Nextflow pipeline for large-scale virtual screening of natural compounds (LOTUS database) against the human Vascular Endothelial Growth Factor Receptor 2 (**VEGFR-2**, PDB [3VO3](https://www.rcsb.org/structure/3VO3)). Candidates are filtered by druglikeness (Lipinski) and predicted ADMET safety, prepared in 3D, and docked with **GNINA** (an AutoDock Vina-derived engine with CNN rescoring). Top-ranked poses are then inspected visually and carried forward, outside this repository, into molecular dynamics (MD) system preparation.
 
+<img src="images/Flux_diagram.png" alt="Workflow Diagram" width="50%">
+
+*Figure: overview of the automated pipeline, from LOTUS/PDB inputs through filtering, docking, and ranking to the final candidate table.*
+
 > **Scope:** this repository covers the *virtual screening* stage of the project end-to-end — data acquisition → druglikeness/ADMET filtering → 3D preparation → docking → ranking → visual inspection — and is fully reproducible by running `nextflow run main.nf`. Two top-ranked candidates were subsequently taken forward into molecular dynamics (MD) system preparation and simulation (CHARMM-GUI + GROMACS). That stage is documented separately, as a methods-completeness reference (see [MD System Preparation and Simulation](#md-system-preparation-and-simulation-external-not-scripted-in-this-repository) below): it was run manually through the CHARMM-GUI web interface and is not scripted or reproducible from this repository.
 
 ## Citation
@@ -14,19 +18,17 @@ A manuscript describing this work is in preparation. The citation (with DOI) wil
 
 | Tool | Version used in this repo | Notes |
 |---|---|---|
-| [Nextflow](https://www.nextflow.io/) | not pinned (TODO) | Workflow manager; requires Java. `conda.enabled = true` in `nextflow.config` — Nextflow builds one Conda environment per process automatically. |
-| Conda / Miniconda | not pinned (TODO) | Required for automatic per-process environment creation (no manual env activation needed). |
+| [Nextflow](https://www.nextflow.io/) | not pinned | Workflow manager; requires Java. `conda.enabled = true` in `nextflow.config` — Nextflow builds one Conda environment per process automatically. |
+| Conda / Miniconda | not pinned | Required for automatic per-process environment creation (no manual env activation needed). |
 | [GNINA](https://github.com/gnina/gnina) | **v1.0.3** | Downloaded automatically as a prebuilt Linux binary at runtime by `modules/docking_gnina.nf` (`gnina/gnina` GitHub release), not installed via Conda/pip. Combines a Vina-based scoring function with CNN pose rescoring. |
-| [MGLTools](https://ccsb.scripps.edu/mgltools/) | not pinned (TODO), installed via `bioconda::mgltools` | Provides `prepare_receptor4.py` for receptor PDBQT preparation. |
-| [RDKit](https://www.rdkit.org/) | not pinned (TODO), installed via `conda-forge::rdkit` | Lipinski filtering, 3D embedding (ETKDGv3), MMFF94 minimization, SMILES recovery from docked poses. |
-| [Meeko](https://github.com/forlilab/Meeko) | not pinned (TODO), installed via `conda-forge::meeko` | Ligand PDBQT writing. |
-| [OpenBabel](https://openbabel.org/) | not pinned (TODO), installed via `conda-forge::openbabel` | Used only for pH-based protonation (`obabel -p 7.4`) before 3D embedding. |
-| [ADMET-AI](https://github.com/swansonk14/admet_ai) | not pinned (TODO), installed via `pip install admet-ai` at process runtime | ADMET property prediction. |
+| [MGLTools](https://ccsb.scripps.edu/mgltools/) | not pinned, installed via `bioconda::mgltools` | Provides `prepare_receptor4.py` for receptor PDBQT preparation. |
+| [RDKit](https://www.rdkit.org/) | not pinned, installed via `conda-forge::rdkit` | Lipinski filtering, 3D embedding (ETKDGv3), MMFF94 minimization, SMILES recovery from docked poses. |
+| [Meeko](https://github.com/forlilab/Meeko) | not pinned, installed via `conda-forge::meeko` | Ligand PDBQT writing. |
+| [OpenBabel](https://openbabel.org/) | not pinned, installed via `conda-forge::openbabel` | Used only for pH-based protonation (`obabel -p 7.4`) before 3D embedding. |
+| [ADMET-AI](https://github.com/swansonk14/admet_ai) | not pinned, installed via `pip install admet-ai` at process runtime | ADMET property prediction. |
 | GPU (CUDA) | — | Not strictly required, but recommended for `FILTER_ADMET` and `DOCKING_GNINA` (both labeled `gpu_intensive`, `maxForks = 1`). |
 
 Nextflow does **not** use a single top-level environment file for the whole pipeline: each process in `modules/*.nf` declares its own inline `conda "..."` package spec, and Nextflow builds/caches a separate Conda environment per process on first run.
-
-`envs/admet_env.yml` exists in the repo but is **not referenced by `main.nf`, `nextflow.config`, or any module** — it appears to be a standalone environment definition for running/testing `admet-ai` manually, not part of the automated pipeline. TODO: confirm its intended use or remove it if stale.
 
 ### Setting up
 
@@ -49,7 +51,7 @@ sudo mv nextflow /usr/local/bin/
 - **GNINA**: fetched automatically at runtime by `DOCKING_GNINA` via `wget` from the pinned GitHub release (`v1.0.3`). Requires internet access at pipeline run time; no manual install needed, but also not cached outside `work/`.
 - **MGLTools**: installed via the `bioconda` channel (`bioconda::mgltools`); no manual download needed given `conda.enabled = true`.
 - **CHARMM-GUI** (v3.7, <https://www.charmm-gui.org/>): used manually for the downstream MD system-building step, via its **Solution Builder** / **Ligand Reader & Modeler** modules and its GROMACS **FF-Converter**. No API/CLI integration exists in this repo — inputs were uploaded and downloaded by hand. See [MD System Preparation and Simulation](#md-system-preparation-and-simulation-external-not-scripted-in-this-repository).
-- **CGenFF**: ligand force-field parameters were generated through CHARMM-GUI's Ligand Reader & Modeler (which wraps CGenFF) for each ligand, producing `UNL.itp`. The exact CGenFF version and atom-typing/penalty-score log are not exported/committed anywhere — TODO if the paper needs to report them.
+- **CGenFF**: ligand force-field parameters were generated through CHARMM-GUI's Ligand Reader & Modeler (which wraps CGenFF) for each ligand, producing `UNL.itp`. The exact CGenFF version and atom-typing/penalty-score log were not exported or retained from those runs.
 - **GROMACS**: CHARMM-GUI exported input files are declared compatible with **GROMACS ≥ 2019.2**; downstream trajectory analysis (RMSD/RMSF/RoG/SASA/H-bonds/PCA) was run with **GROMACS 2026.1**. Force field: **CHARMM36** (via CHARMM-GUI), TIP3P water. Not installed by pip/conda in this repo — install separately (<https://manual.gromacs.org/current/install-guide/index.html>).
 - **gmx_MMPBSA** (+ AmberTools, used only as its internal backend): used for MM-GBSA binding free-energy estimates on the MD trajectories. Installed separately from this pipeline's environments, e.g. `conda create -n gmxMMPBSA python=3.10 -c conda-forge && conda install -c conda-forge ambertools=23 && pip install gmx_MMPBSA` (as documented in `../md_simulations/04b_run_mmpbsa.sh`).
 
@@ -67,8 +69,6 @@ sudo mv nextflow /usr/local/bin/
 │   ├── prepare_receptor.nf   # PREPARE_RECEPTOR: receptor -> PDBQT via MGLTools
 │   ├── docking_gnina.nf      # DOCKING_GNINA: GNINA docking + CNN rescoring
 │   └── paste_results.nf      # CONSOLIDATE_RESULTS: ranking, SMILES recovery, master CSV
-├── envs/
-│   └── admet_env.yml         # Standalone Conda env for admet-ai (not wired into the pipeline — TODO)
 ├── notebooks/
 │   └── 01_VGFR2_Top_Candidates_Visualization.ipynb  # Phase 2: 2D grid + 3D pocket inspection
 ├── raw_data/                 # Pipeline downloads (gitignored): lotus_full.smi, 3VO3.pdb
@@ -77,17 +77,13 @@ sudo mv nextflow /usr/local/bin/
 │       ├── top_candidates_master.csv  # Ranked top candidates with ADMET + docking scores
 │       └── top_poses/*.sdf            # 3D poses of top candidates (gitignored intermediates aside)
 ├── images/
-│   └── Flux_diagram.png      # Workflow diagram referenced below
-└── LICENCE                   # MIT License
+│   └── Flux_diagram.png      # Workflow diagram shown above
+└── LICENSE                   # MIT License
 ```
 
 `raw_data/` and `results/` are listed in `.gitignore`; the copies present in a working checkout are pipeline outputs from a prior local run, not committed example data.
 
 ## Pipeline
-
-Diagram of the automated stages:
-
-<img src="images/Flux_diagram.png" alt="Workflow Diagram" width="50%">
 
 Run the full pipeline with:
 
@@ -101,11 +97,11 @@ Key parameters (`nextflow.config`, overridable with `--param value` or by editin
 params.lotus_url  = "https://lotus.naturalproducts.net/download/smiles"
 params.pdb_id      = "3VO3"
 params.chunk_size  = 10000
-params.raw_dir     = "${projectDir}/../raw_data"
-params.outdir      = "${projectDir}/../results"
+params.raw_dir     = "${projectDir}/raw_data"
+params.outdir      = "${projectDir}/results"
 ```
 
-> **TODO (path check):** `raw_dir`/`outdir` are defined relative to `${projectDir}/..` (one level above the directory containing `main.nf`), but a working checkout shows `raw_data/` and `results/` populated *inside* the repository root (sibling to `main.nf`, not one level above it). Also, `notebooks/01_VGFR2_Top_Candidates_Visualization.ipynb` hardcodes `../nextflow_pipeline/results/...`, which does not match this repository's current flat layout. Verify the intended directory layout (a nested `nextflow_pipeline/` subfolder may have existed before a prior refactor) and correct either the config, the notebook paths, or this note before relying on it for reproduction.
+`raw_dir` and `outdir` default to `raw_data/` and `results/` inside the repository (siblings of `main.nf`); override them with `--raw_dir <path>` / `--outdir <path>` to write pipeline downloads and results elsewhere.
 
 ### Step-by-step
 
@@ -173,7 +169,7 @@ Loads `top_candidates_master.csv`, renders a 2D grid of the top 9 candidates wit
 
 ### MD System Preparation and Simulation (external, not scripted in this repository)
 
-Two docking candidates (**LTS0070549**, **LTS0174212**) plus a structural reference (**Imidazol**, the heterocyclic fragment co-crystallized in 3VO3) were carried forward into MD. This stage lives entirely in a sibling directory, `../md_simulations/` (outside this git repository — not committed, not tracked), and is **manual/semi-scripted, not runnable via `nextflow run main.nf`**. It is documented here, transcribed from the shell scripts, `.mdp` files, and `resumen_ejecutivo_VEGFR2.md` found in that directory, so that the full paper methodology is available in one place. TODO: decide whether `md_simulations/` should be published as supplementary data (its own repo/archive) so this protocol is independently reproducible by reviewers.
+Two docking candidates (**LTS0070549**, **LTS0174212**) plus a structural reference (**Imidazol**, the heterocyclic fragment co-crystallized in 3VO3) were carried forward into MD. This stage lives entirely in a sibling directory, `../md_simulations/` (outside this git repository — not committed, not tracked), and is **manual/semi-scripted, not runnable via `nextflow run main.nf`**. It is documented here, transcribed from the shell scripts, `.mdp` files, and `resumen_ejecutivo_VEGFR2.md` found in that directory, so that the full methodology is available in one place, even though it isn't runnable from this repository.
 
 **System preparation (per system, before CHARMM-GUI)**
 - Receptor: VEGFR-2 kinase domain (residues 812–1168), chain A of `3VO3.pdb`.
@@ -181,7 +177,7 @@ Two docking candidates (**LTS0070549**, **LTS0174212**) plus a structural refere
 
 **System building (CHARMM-GUI v3.7, <https://www.charmm-gui.org/>)**
 - Modules: **Solution Builder** (protein + ligand + water/ion box) and **Ligand Reader & Modeler** (ligand parametrization via CGenFF), with the GROMACS **FF-Converter** for output.
-- Force field: **CHARMM36**. Water model: **TIP3P** (`toppar/TIP3.itp`). Ions: K⁺/Cl⁻ (`POT`/`CLA`), consistent with CHARMM-GUI's default neutralization + physiological salt (0.15 M, matching `saltcon=0.150` used downstream for MM-GBSA) — exact box padding/shape and the salt-concentration value entered in the wizard are not exported/committed (TODO).
+- Force field: **CHARMM36**. Water model: **TIP3P** (`toppar/TIP3.itp`). Ions: K⁺/Cl⁻ (`POT`/`CLA`), consistent with CHARMM-GUI's default neutralization + physiological salt (0.15 M, matching `saltcon=0.150` used downstream for MM-GBSA) — exact box padding/shape and the salt-concentration value entered in the wizard were not exported from those runs.
 - Ligand residue name: `UNL` in all three systems (index group 13 in every case — 53 atoms Imidazol, 59 LTS0174212, 72 LTS0070549).
 - Example composition (`LTS0070549`, replica 1): 1 protein (`PROA`), 1 ligand (`UNL`), 53 K⁺, 55 Cl⁻, 18,936 TIP3P waters. Ion counts differ slightly per system/replica (e.g. `LTS0174212`: 45 K⁺ / 47 Cl⁻) as each was solvated/ionized independently by CHARMM-GUI.
 - Exported files per system: `step3_input.{gro,pdb,psf}`, `topol.top`, `toppar/{forcefield,PROA,UNL,POT,CLA,TIP3}.itp`, `index.ndx`.
@@ -210,7 +206,7 @@ Common to all stages: Verlet cutoff scheme, LINCS constraints on h-bonds, PME el
 
 Values are mean ± SD across the 2 replicas per system, computed over the >20 ns stable block. LTS0174212 sustains protein–ligand H-bonds comparable to the co-crystallized fragment and has the more favorable ΔG_bind of the two candidates; LTS0070549 loses stable H-bond contacts in simulation despite its docking score.
 
-Remaining TODOs for this stage: exact CHARMM-GUI wizard settings not exported (box padding/shape, salt-concentration field, protonation-state assignment method — e.g. PROPKA — if any); CGenFF version and atom-typing/penalty-score log not retained; explicit, code-level criterion for why exactly these two of the pipeline's top-50 candidates were promoted to MD (the summary states "best dockings" qualitatively, without a documented cutoff).
+**Known gaps in this stage's record-keeping:** the exact CHARMM-GUI wizard settings (box padding/shape, salt-concentration field, protonation-state assignment method — e.g. PROPKA — if any) were not exported; the CGenFF version and atom-typing/penalty-score log were not retained; and the selection of these two candidates for MD is described qualitatively ("best dockings") rather than via a documented, code-level cutoff.
 
 ## Minimal Reproducible Example
 
@@ -226,27 +222,27 @@ To reproduce end-to-end from scratch:
 nextflow run main.nf -resume
 ```
 
-TODO: no small/sample SMILES subset is provided for a quick smoke test; running from scratch re-downloads and re-processes the full LOTUS database (`params.chunk_size = 10000` per batch). Consider adding a `--lotus_url` override pointing to a small local `.smi` file for fast reviewer verification.
+**Note:** no small/sample SMILES subset is provided for a quick smoke test — running from scratch re-downloads and reprocesses the full LOTUS database (`params.chunk_size = 10000` per batch). For fast verification, point `--lotus_url` at a small local `.smi` file instead.
 
 ## Reproducibility Notes
 
 - **Docking box**: defined dynamically per run via `--autobox_ligand control_ligand.pdb` (GNINA auto-boxes around the co-crystallized ligand extracted from `3VO3.pdb`); no fixed center/size coordinates are hardcoded.
 - **Search exhaustiveness**: `--exhaustiveness 8` (`modules/docking_gnina.nf`).
 - **Scoring**: GNINA default Vina-based scoring function plus `--cnn_scoring rescore` (default CNN ensemble bundled with GNINA v1.0.3); no custom/trained CNN model is specified.
-- **Random seed**: TODO — no `--seed` is passed to GNINA/AutoDock Vina anywhere in `modules/docking_gnina.nf`, so docking runs are not seeded and results may vary slightly between reruns.
-- **3D embedding**: RDKit `ETKDGv3` with default RDKit seed behavior (also unseeded — TODO if determinism is required), followed by MMFF94 energy minimization (`AllChem.MMFFOptimizeMolecule`, default iteration count).
+- **Random seed**: no `--seed` is passed to GNINA/AutoDock Vina anywhere in `modules/docking_gnina.nf`, so docking runs are not seeded and results may vary slightly between reruns.
+- **3D embedding**: RDKit `ETKDGv3` with default RDKit seed behavior (also unseeded by default), followed by MMFF94 energy minimization (`AllChem.MMFFOptimizeMolecule`, default iteration count).
 - **Ligand protonation**: OpenBabel `-p 7.4` (physiological pH) is attempted before 3D embedding; falls back silently to the unprotonated SMILES if OpenBabel fails (`modules/prepare_meeko.nf`).
 - **Receptor preparation**: MGLTools `prepare_receptor4.py -A hydrogens -U nphs_lps_waters` — non-polar hydrogens, lone pairs, and waters are removed; polar hydrogens and Kollman charges are added (MGLTools defaults, no custom charge set).
 - **Selection thresholds** (manual/scientific decisions baked into the code, not derived from data):
   - Per-batch pose retention: Vina affinity ≤ −7.0 kcal/mol **and** CNN pose score ≥ 0.5 (`modules/docking_gnina.nf`)
   - Final top-candidate cutoff: Vina affinity ≤ −8.0 kcal/mol **and** CNN pose score ≥ 0.6, top 50 by affinity (`modules/paste_results.nf`)
   - ADMET safety cutoff: all six liabilities (`Eye_Irritation`, `Neurotoxicity`, `Immunotoxicity`, `AMES`, `Hepatotoxicity`/`DILI`, `BBB_Martins`) < 0.5 (`modules/admet_filter.nf`)
-- **Software pinning gaps** (TODO): GNINA is the only precisely pinned tool (`v1.0.3`, fixed download URL). RDKit, Meeko, OpenBabel, MGLTools, pandas, and admet-ai are installed as unpinned `conda`/`pip` latest-at-install-time packages — for exact reproducibility, pin versions in each module's `conda` directive and record the resolved environment (e.g., via `conda list --export` after a real run).
+- **Software pinning gaps**: GNINA is the only precisely pinned tool (`v1.0.3`, fixed download URL). RDKit, Meeko, OpenBabel, MGLTools, pandas, and admet-ai are installed as unpinned `conda`/`pip` latest-at-install-time packages — for exact reproducibility, pin versions in each module's `conda` directive and record the resolved environment (e.g., via `conda list --export` after a real run).
 - **MD stage**: see [MD System Preparation and Simulation](#md-system-preparation-and-simulation-external-not-scripted-in-this-repository) — protocol is fully documented (CHARMM36/TIP3P via CHARMM-GUI, GROMACS minimization/NVT/NPT, 2×100 ns replicas per system, `gmx_MMPBSA` MM-GBSA), but it lives outside this git repository (`../md_simulations/`) and is not runnable from here; replica independence comes from GROMACS regenerating velocities per run (`gen-seed=-1`), not from a fixed seed.
 
 ## License
 
-This project is licensed under the MIT License — see [`LICENCE`](LICENCE) for details.
+This project is licensed under the MIT License — see [`LICENSE`](LICENSE) for details.
 
 ## Contact
 
