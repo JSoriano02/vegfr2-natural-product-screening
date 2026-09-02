@@ -5,6 +5,14 @@ work/
 results/
 raw_data/
 
+# Conda environments (Nextflow builds these under work/ by default, but
+# ignore them here too in case one is ever created at the repo root)
+.conda/
+conda-envs/
+
 # Archivos de sistema y editores
 .DS_Store
 .vscode/
+
+# Internal notes, not for publication
+NOTES.md
