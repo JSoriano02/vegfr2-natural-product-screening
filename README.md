@@ -2,7 +2,22 @@
 
 A Nextflow pipeline for large-scale virtual screening of natural compounds (LOTUS database) against the human Vascular Endothelial Growth Factor Receptor 2 (**VEGFR-2**, PDB [3VO3](https://www.rcsb.org/structure/3VO3)). Candidates are filtered by druglikeness (Lipinski) and predicted ADMET safety, prepared in 3D, and docked with **GNINA** (an AutoDock Vina-derived engine with CNN rescoring). Top-ranked poses are then inspected visually and carried forward, outside this repository, into molecular dynamics (MD) system preparation.
 
-<img src="images/Flux_diagram.png" alt="Workflow Diagram" width="50%">
+```mermaid
+flowchart TD
+    A["OBTAIN_DATA_RAW<br/>LOTUS SMILES + PDB 3VO3"] --> B["CHUNK_LOTUS<br/>batches of 10,000"]
+    B --> C["FILTER_RDKIT<br/>Lipinski Rule of Five"]
+    C --> D["FILTER_ADMET<br/>ADMET-AI safety thresholds"]
+    D --> E["PREPARE_MEEKO_3D<br/>ETKDGv3 + MMFF94 → PDBQT"]
+    A --> F["PREPARE_RECEPTOR<br/>MGLTools → receptor PDBQT"]
+    E --> G["DOCKING_GNINA<br/>Vina scoring + CNN rescoring"]
+    F --> G
+    G --> H["CONSOLIDATE_RESULTS<br/>ranked candidates"]
+    D --> H
+    H --> I["Visual inspection<br/>Jupyter notebook — manual"]
+
+    classDef manual stroke-dasharray: 4 3
+    class I manual
+```
 
 *Figure: overview of the automated pipeline, from LOTUS/PDB inputs through filtering, docking, and ranking to the final candidate table.*
 
@@ -76,8 +91,6 @@ sudo mv nextflow /usr/local/bin/
 │   └── top_final/
 │       ├── top_candidates_master.csv  # Ranked top candidates with ADMET + docking scores
 │       └── top_poses/*.sdf            # 3D poses of top candidates (gitignored intermediates aside)
-├── images/
-│   └── Flux_diagram.png      # Workflow diagram shown above
 └── LICENSE                   # MIT License
 ```
 
