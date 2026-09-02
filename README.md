@@ -2,23 +2,11 @@
 
 A Nextflow pipeline for large-scale virtual screening of natural compounds (LOTUS database) against the human Vascular Endothelial Growth Factor Receptor 2 (**VEGFR-2**, PDB [3VO3](https://www.rcsb.org/structure/3VO3)). Candidates are filtered by druglikeness (Lipinski) and predicted ADMET safety, prepared in 3D, and docked with **GNINA** (an AutoDock Vina-derived engine with CNN rescoring). Top-ranked poses are then inspected visually and carried forward, outside this repository, into molecular dynamics (MD) system preparation.
 
-> **Scope note:** this git repository implements the *virtual screening* stage only (data acquisition → filtering → docking → ranking → visual inspection). Two top candidates were subsequently carried into MD system preparation and simulation (CHARMM-GUI + GROMACS), run manually in a **sibling directory (`../md_simulations/`) that is not part of this git repository**. That stage is documented in detail in [MD System Preparation and Simulation](#md-system-preparation-and-simulation-external-not-scripted-in-this-repository) from the artifacts and logs found there, but it is not reproducible by running anything in *this* repo — it required manual steps through the CHARMM-GUI web interface. TODO: decide whether `md_simulations/` should be published alongside this repo (e.g. as a companion repo or data archive) so reviewers can access the underlying trajectories/inputs.
+> **Scope:** this repository covers the *virtual screening* stage of the project end-to-end — data acquisition → druglikeness/ADMET filtering → 3D preparation → docking → ranking → visual inspection — and is fully reproducible by running `nextflow run main.nf`. Two top-ranked candidates were subsequently taken forward into molecular dynamics (MD) system preparation and simulation (CHARMM-GUI + GROMACS). That stage is documented separately, as a methods-completeness reference (see [MD System Preparation and Simulation](#md-system-preparation-and-simulation-external-not-scripted-in-this-repository) below): it was run manually through the CHARMM-GUI web interface and is not scripted or reproducible from this repository.
 
 ## Citation
 
-If you use this pipeline, please cite:
-
-```bibtex
-@article{TODO_author_year,
-  title   = {TODO: Paper title},
-  author  = {TODO: Author list},
-  journal = {TODO: Journal},
-  year    = {TODO},
-  doi     = {TODO}
-}
-```
-
-<!-- TODO: replace with the final BibTeX entry / DOI once the paper is published or a preprint is available. -->
+A manuscript describing this work is in preparation. The citation (with DOI) will be added here once it is available.
 
 ## Requirements and Installation
 
